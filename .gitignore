@@ -1,0 +1,11 @@
+.env
+bot.db
+bot.db-wal
+bot.db-shm
+__pycache__/
+*.pyc
+.venv/
+
+# Both are regenerated: previews by tools.import_vault, media by the bot.
+assets/previews/
+media/

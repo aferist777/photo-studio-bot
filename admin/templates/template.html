@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}{{ t.title }}{% endblock %}
+{% block content %}
+
+<div class="row wrap">
+  <div style="flex:1;min-width:260px">
+    <h1>{{ t.title }}</h1>
+    <p class="sub">
+      {% if t.source_key %}From the vault · <code>{{ t.source_key }}</code>{% else %}Made here, not in the vault{% endif %}
+      · used {{ t.uses }}×
+    </p>
+  </div>
+  <a class="btn" href="/?g={{ t.gender }}">Back to catalog</a>
+</div>
+
+{% if t.source_changed %}
+<div class="card notice">
+  <div class="row wrap">
+    <div style="flex:1;min-width:240px">
+      <b>Obsidian moved on.</b>
+      <div class="hint">The vault text changed after this template was edited here, so the import left your version alone.</div>
+    </div>
+    <button onclick="useVaultText()">Use vault text</button>
+  </div>
+  <details style="margin-top:10px">
+    <summary>Show vault text</summary>
+    <div class="quote">{{ t.source_prompt }}</div>
+  </details>
+</div>
+{% endif %}
+
+<div class="editor" id="editor">
+  <div>
+    <div class="card preview-card">
+      {% if t.preview %}
+        <img src="/previews/{{ t.preview }}" alt="">
+      {% else %}
+        <div class="noimg tall">no preview</div>
+      {% endif %}
+      <div class="hint">Sample result from the vault. Shown to the user in the bot.</div>
+    </div>
+
+    <div class="card">
+      <label class="field">
+        <span>Name</span>
+        <input type="text" data-field="title" value="{{ t.title }}">
+      </label>
+      <label class="field">
+        <span>Gender</span>
+        <select data-field="gender">
+          {% for key, label in genders.items() %}
+          <option value="{{ key }}" {{ 'selected' if key == t.gender }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" data-field="is_enabled" {{ 'checked' if t.is_enabled }}>
+        <span>shown in the bot</span>
+      </label>
+    </div>
+  </div>
+
+  <div>
+    {% if structured %}
+    <div class="card" id="fields">
+      <div class="row" style="margin-bottom:12px">
+        <b style="flex:1">Scene</b>
+        <button class="small" onclick="reparse()">Re-parse from raw text</button>
+        <button class="small" onclick="unstructure()">Edit as plain text</button>
+      </div>
+      {% for f in specs %}
+      <label class="field">
+        <span>{{ f.label }} — {{ f.hint }}</span>
+        <textarea rows="2" data-pfield="{{ f.key }}"
+                  placeholder="{{ f.placeholder }}">{{ values[f.key] }}</textarea>
+      </label>
+      {% endfor %}
+      <div class="hint">
+        Same fields on every template, so a new one is a form to fill. Saves as you type.
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="row" style="margin-bottom:12px">
+        <b style="flex:1">Prompt</b>
+        <button class="small" onclick="reparse()">Split into fields</button>
+      </div>
+      <label class="field" style="margin-bottom:6px">
+        <textarea class="tall" data-field="prompt">{{ t.prompt }}</textarea>
+      </label>
+      <div class="hint">
+        Free text for now. “Split into fields” hands it to Gemini, which sorts it into the
+        same slots every other template uses and repairs the OCR damage on the way.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Sent to the model</h2>
+<div class="card">
+  <div class="quote" id="rendered">{{ t.prompt }}</div>
+  <div class="hint">
+    The face instruction from Settings goes in front of this — it is not repeated per template.
+  </div>
+</div>
+
+<div class="card row">
+  <div class="hint" style="flex:1">Deleting a template does not touch the note in Obsidian.</div>
+  <button class="danger small" onclick="removeTemplate()">Delete</button>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ID = {{ t.id }};
+const rendered = document.getElementById('rendered');
+
+autosave(document.getElementById('editor'), '/api/templates/' + ID);
+
+const fieldsBox = document.getElementById('fields');
+if (fieldsBox) {
+  autosaveFields(fieldsBox, '/api/templates/' + ID + '/fields', text => {
+    rendered.textContent = text;
+  });
+}
+
+async function reparse() {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Parsing…';
+  try {
+    const r = await api('POST', '/api/structure', { only_missing: false, ids: [ID] });
+    toast(r.summary, r.errors.length > 0);
+    if (r.done) setTimeout(() => location.reload(), 900);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Re-parse from raw text';
+  }
+}
+
+async function unstructure() {
+  if (!confirm('Drop the fields and edit this prompt as plain text?')) return;
+  await api('POST', '/api/templates/' + ID + '/unstructure');
+  location.reload();
+}
+
+async function useVaultText() {
+  await api('POST', '/api/templates/' + ID + '/reset');
+  toast('Vault text restored');
+  setTimeout(() => location.reload(), 700);
+}
+
+async function removeTemplate() {
+  if (!confirm('Delete "{{ t.title|e }}" from the catalog?')) return;
+  await api('DELETE', '/api/templates/' + ID);
+  location.href = '/?g={{ t.gender }}';
+}
+</script>
+{% endblock %}

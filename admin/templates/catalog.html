@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Catalog{% endblock %}
+{% block content %}
+
+<div class="row wrap">
+  <div style="flex:1;min-width:260px">
+    <h1>Photoshoot catalog</h1>
+    <p class="sub">Imported from Obsidian. Drag the cards to set the order the bot shows them in.</p>
+  </div>
+  <button id="reimport" onclick="reimport()">Re-import from Obsidian</button>
+  <button onclick="addTemplate()">New template</button>
+</div>
+
+<div class="tabs">
+  {% for key, label in genders.items() %}
+  <a href="/?g={{ key }}" class="{{ 'active' if key == gender }}">
+    {{ label }} <span class="badge">{{ counts[key].on }}/{{ counts[key].total }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{% set raw = counts[gender].raw %}
+{% if raw %}
+<div class="card notice row wrap">
+  <div style="flex:1;min-width:240px">
+    <b>{{ raw }} still free text.</b>
+    <div class="hint">Splitting them into the shared field set makes every template the same shape and fixes the OCR damage from the vault screenshots.</div>
+  </div>
+  <button id="structure" onclick="structureAll()">Split into fields</button>
+</div>
+{% endif %}
+
+{% if not items %}
+<div class="card empty">
+  Nothing here yet. Check the vault path in Settings, then hit “Re-import from Obsidian”.
+</div>
+{% endif %}
+
+<ul class="tiles" id="tiles">
+  {% for t in items %}
+  <li draggable="true" data-id="{{ t.id }}" class="{{ 'off' if not t.is_enabled }}">
+    <a class="thumb" href="/templates/{{ t.id }}">
+      {% if t.preview %}
+        <img src="/previews/{{ t.preview }}" alt="" loading="lazy">
+      {% else %}
+        <span class="noimg">no preview</span>
+      {% endif %}
+      {% if t.source_changed %}<span class="flag" title="The vault text changed after you edited this one">vault moved</span>
+      {% elif not t.fields %}<span class="flag raw" title="Still free text, not split into fields">raw</span>{% endif %}
+    </a>
+    <div class="tile-meta">
+      <a href="/templates/{{ t.id }}" class="name" title="{{ t.title }}">{{ t.title }}</a>
+      <label class="toggle" title="Show this template in the bot">
+        <input type="checkbox" {{ 'checked' if t.is_enabled }}
+               onchange="toggleTemplate({{ t.id }}, this)">
+        <span>on</span>
+      </label>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const GENDER = '{{ gender }}';
+
+const tiles = document.getElementById('tiles');
+if (tiles) {
+  initReorder(tiles, ids => api('POST', '/api/templates/reorder', { gender: GENDER, ids }));
+}
+
+async function toggleTemplate(id, el) {
+  await api('POST', '/api/templates/' + id, { is_enabled: el.checked ? 1 : 0 });
+  el.closest('li').classList.toggle('off', !el.checked);
+}
+
+async function addTemplate() {
+  const title = prompt('Template name');
+  if (!title) return;
+  const r = await api('POST', '/api/templates', { gender: GENDER, title });
+  location.href = '/templates/' + r.id;
+}
+
+async function structureAll() {
+  const btn = document.getElementById('structure');
+  btn.disabled = true;
+  btn.textContent = 'Parsing…';
+  try {
+    const r = await api('POST', '/api/structure', { only_missing: true });
+    toast(r.summary, r.errors.length > 0);
+    setTimeout(() => location.reload(), 1400);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Split into fields';
+  }
+}
+
+async function reimport() {
+  const btn = document.getElementById('reimport');
+  btn.disabled = true;
+  btn.textContent = 'Importing…';
+  try {
+    const r = await api('POST', '/api/import', {});
+    toast(r.summary, r.errors.length > 0);
+    setTimeout(() => location.reload(), 1200);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Re-import from Obsidian';
+  }
+}
+</script>
+{% endblock %}

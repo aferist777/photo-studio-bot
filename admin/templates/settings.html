@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+
+<h1>Settings</h1>
+<p class="sub">Everything here applies to the next generation — no restart. Saves as you type.</p>
+
+<div id="settings">
+  <div class="card">
+    <label class="field" style="margin-bottom:6px">
+      <span>Face instruction</span>
+      <textarea class="tall" data-field="face_prefix">{{ s.face_prefix }}</textarea>
+    </label>
+    <div class="hint">
+      Prepended to every template prompt. This replaces the “use 100% upload face” lines the
+      vault notes carried, so the wording lives in one place instead of 36.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid2">
+      <label class="field">
+        <span>Aspect ratio</span>
+        <select data-field="aspect_ratio">
+          {% for value in ['3:4', '4:5', '2:3', '1:1', '9:16'] %}
+          <option value="{{ value }}" {{ 'selected' if value == s.aspect_ratio }}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span>Image size</span>
+        <select data-field="image_size">
+          {% for value in ['1K', '2K', '4K'] %}
+          <option value="{{ value }}" {{ 'selected' if value == s.image_size }}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="hint">Portrait templates were written for 3:4. Bigger sizes cost more per image.</div>
+  </div>
+
+  <div class="card">
+    <label class="field" style="margin-bottom:6px">
+      <span>Send the scene as</span>
+      <select data-field="prompt_format">
+        <option value="prose" {{ 'selected' if s.prompt_format == 'prose' }}>Prose — the fields written out as a paragraph</option>
+        <option value="json" {{ 'selected' if s.prompt_format == 'json' }}>JSON — the raw field object</option>
+      </select>
+    </label>
+    <div class="hint">
+      Templates are stored as fields either way; this only picks what reaches the model.
+      Google's guidance for nano-banana asks for a described scene rather than a list of
+      keys, so prose is the default — flip it to compare on real generations.
+    </div>
+  </div>
+
+  <h2>Credits</h2>
+  <div class="card">
+    <div class="grid3">
+      <label class="field">
+        <span>Free credits on start</span>
+        <input type="number" min="0" data-field="free_credits" value="{{ s.free_credits }}">
+      </label>
+      <label class="field">
+        <span>Credits per pack</span>
+        <input type="number" min="1" data-field="credits_per_pack" value="{{ s.credits_per_pack }}">
+      </label>
+      <label class="field">
+        <span>Pack price, Stars</span>
+        <input type="number" min="1" data-field="pack_price_stars" value="{{ s.pack_price_stars }}">
+      </label>
+    </div>
+    <div class="hint">One credit is one generated photo. Payments land in a later phase.</div>
+  </div>
+
+  <h2>Vault</h2>
+  <div class="card">
+    <div class="hint">Templates are imported from</div>
+    <code>{{ vault }}</code>
+    <div class="hint" style="margin-top:8px">
+      Change it with <code>VAULT_DIR</code> in <code>.env</code>, then re-import from the catalog page.
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+autosave(document.getElementById('settings'), '/api/settings');
+</script>
+{% endblock %}
